@@ -2,12 +2,13 @@ project(mediasoup-client-native-cpp)
 cmake_minimum_required (VERSION 3.3)
 
 find_package(libwebrtc REQUIRED)
+find_package(openssl REQUIRED)
 find_package(boost REQUIRED)
 set(CMAKE_CXX_STANDARD 14)
 
 include_directories(src)
 
-add_executable(example src/example.cpp src/json.hpp src/log.h src/requestId.h src/WebSocketTransport.h)
+add_executable(example src/example.cpp src/log.h src/request_id.h src/json.hpp src/VoiceChannel.h src/Handler.h src/WebSocketTransport.h src/VoiceChannelData.h src/simpleListeners.h)
 
 target_link_libraries(example ${WEBRTC_LIBRARIES})
 
