@@ -2,6 +2,7 @@
 #define _VoiceChannel_h_
 
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl.hpp>
 
 #include "webrtc/rtc_base/ssladapter.h"
 
@@ -15,6 +16,7 @@
 #include <string>
 
 using json = nlohmann::json;
+namespace ssl = boost::asio::ssl;
 
 class VoiceChannel
   : public protoo::WebSocketTransport::TransportListener,
@@ -38,7 +40,10 @@ class VoiceChannel
     string const peerName
   ): peerName(peerName), ioc(ioc) {
     log("Init SSL");
+    // for WebRTC
     rtc::InitializeSSL();
+    // for Boost
+    ssl::context ctx{ssl::context::sslv23_client};
     log("SSL ok");
     auto path = "/?peerName=" + peerName + "&roomId=" + roomId;
 
@@ -46,6 +51,7 @@ class VoiceChannel
     auto shared = std::shared_ptr<VoiceChannel>(this);
     transport = std::make_shared<protoo::WebSocketTransport>(
       ioc,
+      ctx,
       shared,
       host,
       port,

@@ -17,7 +17,7 @@ int main() {
   auto username = "Kim-" + std::to_string(randomNumber());
   auto vc = std::make_shared<VoiceChannel>(
     ioc,
-    "localhost", "3480",
+    "localhost", "3443",
     "g5loxak4",
     username);
   vc->joinRoom();

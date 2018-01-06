@@ -10,6 +10,6 @@ include_directories(src)
 
 add_executable(example src/example.cpp src/log.h src/request_id.h src/json.hpp src/VoiceChannel.h src/Handler.h src/WebSocketTransport.h src/VoiceChannelData.h src/simpleListeners.h)
 
-target_link_libraries(example ${WEBRTC_LIBRARIES})
+target_link_libraries(example ${WEBRTC_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 set_target_properties(example PROPERTIES LINK_FLAGS "-lboost_system -lboost_random")

@@ -5,6 +5,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
 
 #include <string>
 #include "json.hpp"
@@ -15,6 +16,7 @@ using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 using std::string;
 namespace websocket = boost::beast::websocket;
+namespace ssl = boost::asio::ssl;
 
 namespace protoo {
 
@@ -40,7 +42,7 @@ class WebSocketTransport
   string path;
 
   std::shared_ptr<TransportListener> listener;
-  websocket::stream<tcp::socket> ws;
+  websocket::stream<ssl::stream<tcp::socket>> ws;
   tcp::resolver resolver;
   boost::beast::multi_buffer buffer; // used to read incoming websocket messages
 
@@ -52,6 +54,7 @@ class WebSocketTransport
   public:
   WebSocketTransport(
     boost::asio::io_context &ioc,
+    ssl::context &ctx,
     std::shared_ptr<TransportListener> listener,
     string host,
     string port,
@@ -61,7 +64,7 @@ class WebSocketTransport
       port(port),
       path(path),
       listener(listener),
-      ws(ioc),
+      ws(ioc, ctx),
       resolver(ioc) {
   }
 
@@ -133,7 +136,7 @@ class WebSocketTransport
       listener->onTransportError(error);
     } else {
       boost::asio::async_connect(
-        ws.next_layer(),
+        ws.next_layer().next_layer(),
         results.begin(),
         results.end(),
         std::bind(
@@ -144,8 +147,23 @@ class WebSocketTransport
   }
 
   void onConnect(boost::system::error_code ec) {
-    if(ec) {
+    if (ec) {
       auto error = "Could not connect to the host";
+      logError(error);
+      listener->onTransportError(error);
+    } else {
+      ws.next_layer().async_handshake(
+        ssl::stream_base::client,
+        std::bind(
+          &WebSocketTransport::onSSLHandshake,
+          shared_from_this(),
+          std::placeholders::_1));
+    }
+  }
+
+  void onSSLHandshake(boost::system::error_code ec) {
+    if(ec) {
+      auto error = "Could not perform SSL handshake";
       logError(error);
       listener->onTransportError(error);
     } else {
