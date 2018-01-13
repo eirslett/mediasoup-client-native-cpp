@@ -18,7 +18,7 @@ int main() {
   auto vc = std::make_shared<VoiceChannel>(
     ioc,
     "localhost", "3443",
-    "g5loxak4",
+    "testroom",
     username);
   vc->joinRoom();
 

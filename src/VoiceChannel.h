@@ -136,11 +136,13 @@ class VoiceChannel
   }
 
   void initWebRTC(json const roomSettings) {
-    log("Init WebRTC here! Got room settings: " + roomSettings.dump());
+    log("Init WebRTC here! Got room settings: " + roomSettings.at("data").dump());
+    handler->roomSettings = roomSettings.at("data");
     handler->initWebRTC();
   }
 
   void onRtpCapabilities(json const nativeCapabilities) override {
+
     this->transport->request("mediasoup-request", {
       {"appData", {
         {"device", {
@@ -195,6 +197,8 @@ class VoiceChannel
       log("Handle peer " + peer.dump());
       handlePeer(peer);
     }
+
+    handler->addProducers();
 
     /*
     this->sendTransportId = randomNumber();

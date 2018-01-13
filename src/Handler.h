@@ -16,7 +16,7 @@
 #include "WebSocketTransport.h"
 #include "VoiceChannelData.h"
 #include "simpleListeners.h"
-
+#include "sdpUtils.h"
 
 #include "webrtc/media/engine/webrtcvideocapturerfactory.h"
 #include "webrtc/modules/video_capture/video_capture_factory.h"
@@ -272,10 +272,12 @@ class Handler
         initialSendOfferSdp = serialized;
         sendPeerConnection->SetLocalDescription(new rtc::RefCountedObject<SimpleSetSessionDescriptionObserver>("send-setLocal", [&](){
             log("Success: set up send peer connection");
-            addProducer("video", video_track->id());
-            // addProducer("audio", audio_track->id());
         }), desc);
-        listener->onRtpCapabilities(serialized);
+        log("Room settings: " + roomSettings.dump());
+        auto capabilities = getEffectiveClientRtpCapabilities(serialized, roomSettings);
+        log("Our capabilities: " + capabilities.dump());
+        // listener->onRtpCapabilities(serialized);
+        listener->onRtpCapabilities(capabilities);
     });
 
     log("Creating offer...");
@@ -292,6 +294,11 @@ class Handler
     }), nullptr);
     */
     log("My work here is done!");
+  }
+
+  void addProducers () {
+    addProducer("video", video_track->id());
+    // addProducer("audio", audio_track->id());
   }
 
   void ensureSendTransportCreated(std::function<void(json)> callback) {
@@ -311,6 +318,7 @@ class Handler
                     }},
         {"target",  "peer"},
       }, [=](json response) {
+        log("createTransport response: " + response.dump());
         remoteSendTransportSdp = response.at("data");
         callback(remoteSendTransportSdp);
       });
@@ -344,6 +352,7 @@ class Handler
 
   void gotProducerData(json data, std::string kind) {
     log("=========>>>>>>>>>>>> KIND: " + kind);
+    log("data is: " + data.dump());
     auto remoteSdp = data.at("data").at("sdp").get<string>();
     json rtpParameters = data.at("data").at("rtpParameters");
     log("Got producer data: " + remoteSdp);
