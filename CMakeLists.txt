@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 14)
 
 include_directories(src)
 
-add_executable(example src/example.cpp src/log.h src/request_id.h src/json.hpp src/VoiceChannel.h src/Handler.h src/WebSocketTransport.h src/VoiceChannelData.h src/simpleListeners.h src/sdpUtils.h)
+add_executable(example src/example.cpp src/log.h src/request_id.h src/json.hpp src/VoiceChannel.h src/Handler.h src/WebSocketTransport.h src/VoiceChannelData.h src/simpleListeners.h src/sdpUtils.h src/RemotePlanBSdp.h src/WorkQueue.h)
 
 target_link_libraries(example ${WEBRTC_LIBRARIES} ${OPENSSL_LIBRARIES} sdptransform)
 

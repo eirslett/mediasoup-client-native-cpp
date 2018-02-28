@@ -58,9 +58,9 @@ class VoiceChannel
       path
     );
 
-    auto pcFactory = webrtc::CreatePeerConnectionFactory();
+    // auto pcFactory = webrtc::CreatePeerConnectionFactory();
 
-    this->handler = new rtc::RefCountedObject<Handler>(pcFactory, shared_from_this(), transport);
+    this->handler = new rtc::RefCountedObject<Handler>(shared_from_this(), transport);
   }
 
   void joinRoom() {
@@ -146,8 +146,8 @@ class VoiceChannel
     this->transport->request("mediasoup-request", {
       {"appData", {
         {"device", {
-          {"flag", "vatlib"},
-          {"name", "vatlib"},
+          {"flag", "mediasoup-client-cpp"},
+          {"name", "mediasoup-client-cpp"},
           {"version", "1.0"}
         }},
         {"displayName", peerName}

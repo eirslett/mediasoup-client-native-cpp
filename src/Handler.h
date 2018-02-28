@@ -17,12 +17,12 @@
 #include "VoiceChannelData.h"
 #include "simpleListeners.h"
 #include "sdpUtils.h"
+#include "RemotePlanBSdp.h"
+#include "WorkQueue.h"
+#include "log.h"
 
 #include "webrtc/media/engine/webrtcvideocapturerfactory.h"
 #include "webrtc/modules/video_capture/video_capture_factory.h"
-
-
-#include "log.h"
 
 using std::string;
 
@@ -146,6 +146,10 @@ class Handler
   json remoteSendTransportSdp;
   int sendTransportId;
   int receiveTransportId;
+  int sendTransportVersion = 0;
+  int receiveTransportVersion = 0;
+
+  WorkQueue workQueue;
 
   protected:
   std::shared_ptr<HandlerListener> listener;
@@ -170,14 +174,15 @@ class Handler
   std::string initialReceiveOfferSdp;
 
     Handler(
-      rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> peerConnectionFactory,
+      // rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> peerConnectionFactory,
       std::shared_ptr<HandlerListener> listener,
       std::shared_ptr<protoo::WebSocketTransport> transport
     ):
-      peerConnectionFactory(peerConnectionFactory),
+      // peerConnectionFactory(peerConnectionFactory),
       listener(listener),
       transport(transport)
     {
+      receiveTransportId = randomNumber();
 
     /*
     auto owned_worker_thread_ = rtc::Thread::Create();
@@ -297,8 +302,8 @@ class Handler
   }
 
   void addProducers () {
-    addProducer("video", video_track->id());
-    // addProducer("audio", audio_track->id());
+    // addProducer("video", video_track->id());
+    addProducer("audio", audio_track->id());
   }
 
   void ensureSendTransportCreated(std::function<void(json)> callback) {
@@ -311,6 +316,7 @@ class Handler
                       {"media", "SEND"}
                     }},
         {"id", sendTransportId},
+        {"version", sendTransportVersion++},
         {"direction", "send"},
         {"method",  "createTransport"},
         {"options", {
@@ -318,7 +324,7 @@ class Handler
                     }},
         {"target",  "peer"},
       }, [=](json response) {
-        log("createTransport response: " + response.dump());
+        // log("createTransport response: " + response.dump());
         remoteSendTransportSdp = response.at("data");
         callback(remoteSendTransportSdp);
       });
@@ -342,7 +348,8 @@ class Handler
               {"kind", kind},
               {"trackId", id},
               {"initialOfferSdp", serialized},
-              {"remoteTransportSdp", remoteSendTransportSdp}
+              {"remoteTransportSdp", remoteSendTransportSdp},
+              {"transportId", sendTransportId}
             };
             transport->request("mediasoup-request", request, std::bind(&Handler::gotProducerData, this, std::placeholders::_1, kind));
         // }), sessionDesc);
@@ -351,12 +358,8 @@ class Handler
   }
 
   void gotProducerData(json data, std::string kind) {
-    log("=========>>>>>>>>>>>> KIND: " + kind);
-    log("data is: " + data.dump());
     auto remoteSdp = data.at("data").at("sdp").get<string>();
     json rtpParameters = data.at("data").at("rtpParameters");
-    log("Got producer data: " + remoteSdp);
-    log("Got rtp parameters: " + rtpParameters.dump());
 
     webrtc::SdpParseError error;
 
@@ -364,9 +367,7 @@ class Handler
       webrtc::CreateSessionDescription(webrtc::SessionDescriptionInterface::kAnswer,
                                        remoteSdp, &error);
 
-    log("1) Setting remote description");
     sendPeerConnection->SetRemoteDescription(new rtc::RefCountedObject<SimpleSetSessionDescriptionObserver>("send-setRemote", [=](){
-        log("2) Successfully set remote description");
 
         std::string source = "mic";
         if (kind == "video") {
@@ -383,8 +384,6 @@ class Handler
           {"rtpParameters", rtpParameters},
           {"transportId", sendTransportId}
         };
-
-        log("2b) Request: " + req.dump());
 
         transport->request("mediasoup-request", req, [&](json response) {
             log("Oh yere, created producer on WS");
@@ -409,51 +408,67 @@ class Handler
     }), remoteAnswer);
   }
 
+  // bool alreadyAddedUseForTesting = false;
   void addConsumer(ConsumerInfo consumer) {
-    return; // TODO actually add!
-    auto consumerId = consumer.at("id").get<int>();
-    // log("consumerId=" + std::to_string(consumerId));
-    auto kind = consumer.at("kind").get<string>();
-    // log("kind=" + kind);
+    log(">=>=>=>=> Adding CONSUMER <=<=<=<=<=<=!");
 
-/*
-    if (kind != "audio") {
-      logError("Kind " + kind + " not supported, skipping.");
-      return;
-    }
-*/
+    workQueue.run([=](std::function<void()> cb) {
+      /* just used as a guard to prevent more consumers, during testing
+      if (alreadyAddedUseForTesting) {
+        return;
+      }
+      alreadyAddedUseForTesting = true;
+      */
 
-    auto id = consumer.at("id").get<int>();
-    // log("id=" + std::to_string(id));
-    auto trackId = "consumerZZZZZZ-" + kind + "-" + std::to_string(id);
-    auto encoding = consumer.at("rtpParameters").at("encodings").at(0);
-    // log("trackId=" + trackId);
-    auto ssrc = encoding.at("ssrc").get<int>();
-    // log("ssrc=" + std::to_string(ssrc));
-    auto cname = consumer.at("rtpParameters").at("rtcp").at("cname").get<string>();
-    // log("cname=" + cname);
-    json consumerInfo = {
-      {"kind", kind},
-      {"trackId", trackId},
-      {"ssrc", ssrc},
-      {"cname", cname}
-    };
+      // return; // TODO actually add!
+      auto consumerId = consumer.at("id").get<int>();
+      // log("consumerId=" + std::to_string(consumerId));
+      auto kind = consumer.at("kind").get<string>();
+      // log("kind=" + kind);
 
-    // TODO: if (encoding.rtx && encoding.rtx.ssrc) consumerInfo.rtxSsrc = encoding.rtx.ssrc;
-    if (encoding.count("rtx") > 0 && encoding.at("rtx").count("ssrc") > 0) {
-      consumerInfo.emplace("rtxSsrc", encoding.at("rtx").at("ssrc"));
-    }
+  /*
+      if (kind != "audio") {
+        logError("Kind " + kind + " not supported, skipping.");
+        return;
+      }
+  */
 
-    consumers.emplace(consumerId, consumerInfo);
+      auto id = consumer.at("id").get<int>();
+      // log("id=" + std::to_string(id));
+      auto trackId = "consumerZZZZZZ-" + kind + "-" + std::to_string(id);
+      auto encoding = consumer.at("rtpParameters").at("encodings").at(0);
+      // log("trackId=" + trackId);
+      auto ssrc = encoding.at("ssrc").get<int>();
+      // log("ssrc=" + std::to_string(ssrc));
+      auto cname = consumer.at("rtpParameters").at("rtcp").at("cname").get<string>();
+      // log("cname=" + cname);
+      json consumerInfo = {
+        {"kind", kind},
+        {"trackId", trackId},
+        {"ssrc", ssrc},
+        {"cname", cname}
+      };
 
-    json request = {
-      {"method", "newConsumerSdp"},
-      {"initialOfferSdp", initialSendOfferSdp},
-      // {"initialOfferSdp", initialReceiveOfferSdp},
-      {"remoteTransportSdp", remoteReceiveTransportSdp},
-      {"consumers", consumers}
-    };
-    transport->request("mediasoup-request", request, std::bind(&Handler::addConsumerWithSdp, this, std::placeholders::_1));
+      if (encoding.count("rtx") > 0 && encoding.at("rtx").count("ssrc") > 0) {
+        consumerInfo.emplace("rtxSsrc", encoding.at("rtx").at("ssrc"));
+      }
+
+      consumers.emplace(consumerId, consumerInfo);
+
+      log("ADDING CONSUMER RIGHT OVER HERE");
+
+      json request = {
+        {"method", "newConsumerSdp"},
+        {"initialOfferSdp", initialSendOfferSdp},
+        // {"initialOfferSdp", initialReceiveOfferSdp},
+        {"remoteTransportSdp", remoteReceiveTransportSdp},
+        {"transportId", receiveTransportId},
+        {"version", receiveTransportVersion++},
+        {"consumers", consumers}
+      };
+      transport->request("mediasoup-request", request, std::bind(&Handler::addConsumerWithSdp, this, std::placeholders::_1));
+      cb();
+    });
   }
 
   void addConsumerWithSdp(json const sdpResponse) {

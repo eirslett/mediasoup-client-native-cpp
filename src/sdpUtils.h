@@ -33,7 +33,7 @@ namespace ortc {
 
       // Add RTX codec.
       if (capCodec.count("recvRtxPayloadType")) {
-        log("capCodec: " + capCodec.dump());
+        // log("capCodec: " + capCodec.dump());
         json rtxCapCodec = {
           {"name", "rtx"},
           {"mimeType", capCodec.at("kind").get<string>() + "/rtx"},
@@ -45,7 +45,7 @@ namespace ortc {
           }}
         };
 
-        log("FOUND RTX CODEC, ADD IT");
+        // log("FOUND RTX CODEC, ADD IT");
         codecs.push_back(rtxCapCodec);
       }
 
@@ -124,7 +124,7 @@ namespace ortc {
       for (auto &remoteCodec : remoteCaps.at("codecs")) {
         // TODO: Ignore pseudo-codecs and feature codecs.
         if (remoteCodec.at("name") == "rtx") {
-          log("Found RTX codec, skip it!");
+          // log("Found RTX codec, skip it!");
           continue;
         }
 
@@ -158,9 +158,11 @@ namespace ortc {
 
     // Match RTX codecs.
     for (auto extendedCodec : codecs) {
+      /*
       log("Match RTX codecs... " + codecs.dump());
       log("LocalCaps " + localCaps.dump());
       log("RemoteCaps " + remoteCaps.dump());
+      */
 
       auto localCapsCodecs = localCaps.at("codecs").get<std::vector<json>>();
       auto searchMatchingLocalRtxCodec = std::find_if(localCapsCodecs.begin(), localCapsCodecs.end(), [&](auto localCodec) {
@@ -173,7 +175,7 @@ namespace ortc {
       });
 
       if (searchMatchingLocalRtxCodec != localCapsCodecs.end() && searchMatchingRemoteRtxCodec != remoteCapsCodecs.end()) {
-        log("FOUND MATCH SO WE ARE HERE WITH TYPES");
+        // log("FOUND MATCH SO WE ARE HERE WITH TYPES");
         extendedCodec.emplace("sendRtxPayloadType", (*searchMatchingLocalRtxCodec).at("preferredPayloadType"));
         extendedCodec.emplace("recvRtxPayloadType", (*searchMatchingRemoteRtxCodec).at("preferredPayloadType"));
       }
@@ -350,7 +352,6 @@ json getExtendedRtpCapabilities(json sdpObj, json roomCapabilities) {
 
 json getEffectiveClientRtpCapabilities(string sdp, json roomCapabilities) {
   json sdpObj = sdptransform::parse(sdp);
-  log("sdpObj: " + sdpObj.dump());
   auto extendedRtpCapabilities = getExtendedRtpCapabilities(sdpObj, roomCapabilities);
   return ortc::getRtpCapabilities(extendedRtpCapabilities);
 }
